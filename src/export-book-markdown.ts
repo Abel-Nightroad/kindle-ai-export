@@ -3,8 +3,8 @@ import 'dotenv/config'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv, readJsonFile } from './utils'
+import type { BookMetadata } from './types'
+import { assert, getEnv, readBookContent, readJsonFile } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -12,9 +12,7 @@ async function main() {
 
   const outDir = path.join('out', asin)
 
-  const content = await readJsonFile<ContentChunk[]>(
-    path.join(outDir, 'content.json')
-  )
+  const { content, suffix, tocLabel } = await readBookContent(outDir)
   const metadata = await readJsonFile<BookMetadata>(
     path.join(outDir, 'metadata.json')
   )
@@ -53,7 +51,11 @@ ${metadata.toc
   )
   .map(
     (tocItem) =>
-      `${'  '.repeat(tocItem.depth)}- [${tocItem.label}](#${tocItem.label.toLowerCase().replaceAll(/[^\da-z]+/g, '-')})`
+      `${'  '.repeat(tocItem.depth)}- [${tocLabel(tocItem.label)}](#${tocLabel(
+        tocItem.label
+      )
+        .toLowerCase()
+        .replaceAll(/[^\da-z]+/g, '-')})`
   )
   .join('\n')}
 
@@ -78,14 +80,14 @@ ${metadata.toc
 
     output += `
 
-${'#'.repeat(tocItem.depth + 2)} ${tocItem.label}
+${'#'.repeat(tocItem.depth + 2)} ${tocLabel(tocItem.label)}
 
 ${text}`
 
     index = nextIndex
   }
 
-  await fs.writeFile(path.join(outDir, 'book.md'), output)
+  await fs.writeFile(path.join(outDir, `book${suffix}.md`), output)
   console.log(output)
 }
 

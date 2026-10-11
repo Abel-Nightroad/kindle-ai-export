@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises'
+import path from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import hashObjectImpl from 'hash-object'
-import timeFormat from 'hh-mm-ss'
 import sortKeys from 'sort-keys'
 import { extract } from 'tar'
 import { temporaryDirectory } from 'tempy'
 
-import type { BookMetadata } from './types'
+import type { BookMetadata, ContentChunk } from './types'
 
 export function assert(
   value: unknown,
@@ -100,42 +100,6 @@ export function hashObject(obj: Record<string, any>): string {
   })
 }
 
-export type FfmpegProgressEvent = {
-  frames: number
-  currentFps: number
-  currentKbps: number
-  targetSize: number
-  timemark: string
-  percent?: number | undefined
-}
-
-export function ffmpegOnProgress(
-  onProgress: (progress: number, event: FfmpegProgressEvent) => void,
-  durationMs: number
-) {
-  return (event: FfmpegProgressEvent) => {
-    let progress = 0
-
-    try {
-      const timestamp = timeFormat.toMs(event.timemark)
-      progress = timestamp / durationMs
-    } catch {}
-
-    if (
-      Number.isNaN(progress) &&
-      event.percent !== undefined &&
-      !Number.isNaN(event.percent)
-    ) {
-      progress = event.percent / 100
-    }
-
-    if (!Number.isNaN(progress)) {
-      progress = Math.max(0, Math.min(1, progress))
-      onProgress(progress, event)
-    }
-  }
-}
-
 /**
  * Decompress a TAR (optionally .tar.gz/.tgz) Buffer to a fresh temp directory.
  * Returns the absolute path of the temp directory.
@@ -177,6 +141,44 @@ export async function tryReadJsonFile<T = unknown>(
     // escapes the `catch` entirely.
     return await readJsonFile(filePath)
   } catch {}
+}
+
+/**
+ * Reads the book's transcribed content for exporting. With `BOOK_LANGUAGE`
+ * set (e.g. `fi`), reads the translation from `content.<lang>.json` instead,
+ * falling back to the original text for any chunk that wasn't translated.
+ */
+export async function readBookContent(outDir: string) {
+  const content = await readJsonFile<ContentChunk[]>(
+    path.join(outDir, 'content.json')
+  )
+
+  const lang = getEnv('BOOK_LANGUAGE')
+  if (!lang) {
+    return { content, suffix: '', tocLabel: (label: string) => label }
+  }
+
+  const translated = await readJsonFile<ContentChunk[]>(
+    path.join(outDir, `content.${lang}.json`)
+  )
+  const translatedByIndex = new Map(translated.map((c) => [c.index, c]))
+  const tocLabels =
+    (await tryReadJsonFile<Record<string, string>>(
+      path.join(outDir, `toc.${lang}.json`)
+    )) ?? {}
+
+  const untranslated = content.filter((c) => !translatedByIndex.has(c.index))
+  if (untranslated.length) {
+    console.warn(
+      `${untranslated.length} chunks have no translation; using the original text for them`
+    )
+  }
+
+  return {
+    content: content.map((c) => translatedByIndex.get(c.index) ?? c),
+    suffix: `.${lang}`,
+    tocLabel: (label: string) => tocLabels[label] ?? label
+  }
 }
 
 const bookMetadataFieldOrder: (keyof BookMetadata)[] = [

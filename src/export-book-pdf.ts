@@ -6,8 +6,8 @@ import path from 'node:path'
 
 import PDFDocument from 'pdfkit'
 
-import type { BookMetadata, ContentChunk } from './types'
-import { assert, getEnv } from './utils'
+import type { BookMetadata } from './types'
+import { assert, getEnv, readBookContent } from './utils'
 
 async function main() {
   const asin = getEnv('ASIN')
@@ -15,9 +15,7 @@ async function main() {
 
   const outDir = path.join('out', asin)
 
-  const content = JSON.parse(
-    await fsp.readFile(path.join(outDir, 'content.json'), 'utf8')
-  ) as ContentChunk[]
+  const { content, suffix, tocLabel } = await readBookContent(outDir)
   const metadata = JSON.parse(
     await fsp.readFile(path.join(outDir, 'metadata.json'), 'utf8')
   ) as BookMetadata
@@ -36,7 +34,9 @@ async function main() {
       Author: authors.join(', ')
     }
   })
-  const stream = doc.pipe(fs.createWriteStream(path.join(outDir, 'book.pdf')))
+  const stream = doc.pipe(
+    fs.createWriteStream(path.join(outDir, `book${suffix}.pdf`))
+  )
 
   const fontSize = 12
 
@@ -83,9 +83,9 @@ async function main() {
     const chunks = content.slice(index, nextIndex)
     const text = chunks.map((chunk) => chunk.text).join(' ')
 
-    ;(doc as any).outline.addItem(tocItem.label)
+    ;(doc as any).outline.addItem(tocLabel(tocItem.label))
     doc.fontSize(tocItem.depth === 1 ? 16 : 20)
-    doc.text(tocItem.label, { align: 'center', lineGap: 16 })
+    doc.text(tocLabel(tocItem.label), { align: 'center', lineGap: 16 })
 
     doc.fontSize(fontSize)
     doc.moveDown(1)

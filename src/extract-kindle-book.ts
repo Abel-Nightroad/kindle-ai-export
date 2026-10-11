@@ -35,7 +35,7 @@ import {
 // (not strictly necessary, but adblockers do this by default anyway and it
 // makes the script run a bit faster)
 const urlRegexBlacklist = [
-  /unagi-\w+\.amazon\.com/i, // 'unagi-na.amazon.com'
+  /unagi-\w+\.amazon\.\w+/i, // 'unagi-na.amazon.com', 'unagi-eu.amazon.com'
   /m\.media-amazon\.com.*\/showads/i,
   /fls-na\.amazon\.com.*\/remote-weblab-triggers/i
 ]
@@ -61,7 +61,10 @@ async function main() {
   await fs.mkdir(pageScreenshotsDir, { recursive: true })
 
   const krRendererMainImageSelector = '#kr-renderer .kg-full-page-img img'
-  const bookReaderUrl = `https://read.amazon.com/?asin=${asin}`
+  // Kindle Cloud Reader for your Amazon store, e.g. `lesen.amazon.de` for
+  // amazon.de accounts.
+  const readerHost = getEnv('KINDLE_READER_HOST') || 'read.amazon.com'
+  const bookReaderUrl = `https://${readerHost}/?asin=${asin}`
 
   const result: SetRequired<Partial<BookMetadata>, 'pages' | 'nav'> = {
     pages: [],
@@ -154,7 +157,9 @@ async function main() {
           result.meta = metadata
         }
       } else if (
-        url.hostname === 'read.amazon.com' &&
+        // Compare against the page's host too, in case the reader redirected.
+        (url.hostname === readerHost ||
+          url.hostname === new URL(page.url()).hostname) &&
         url.searchParams.get('asin')?.toLowerCase() === asinL
       ) {
         if (url.pathname === '/service/mobile/reader/startReading') {
@@ -304,12 +309,16 @@ async function main() {
 
   // If we're on the signin page, start the authentication flow.
   if (/\/ap\/signin/g.test(new URL(page.url()).pathname)) {
-    await page.locator('input[type="email"]').fill(amazonEmail)
-    await page.locator('input[type="submit"]').click()
+    // Submit with Enter rather than clicking a submit button, since Amazon's
+    // signin pages can contain several (e.g. "Sign in with the Amazon app").
+    const emailInput = page.locator('input[type="email"]')
+    await emailInput.fill(amazonEmail)
+    await emailInput.press('Enter')
 
-    await page.locator('input[type="password"]').fill(amazonPassword)
+    const passwordInput = page.locator('input[type="password"]')
+    await passwordInput.fill(amazonPassword)
     // await page.locator('input[type="checkbox"]').click()
-    await page.locator('input[type="submit"]').click()
+    await passwordInput.press('Enter')
 
     if (!/\/kindle-library/g.test(new URL(page.url()).pathname)) {
       const code = await promptWithoutLogNoise('2-factor auth code?')
@@ -364,17 +373,33 @@ async function main() {
     await delay(500)
   }
 
+  // Some readers (e.g. lesen.amazon.de) only offer "Go to Location" and show
+  // locations in the footer instead of pages. In that case we translate between
+  // locations and pages ourselves using the render location map.
+  let locationOnlyMode = false
+
   async function goToPage(pageNumber: number) {
     await page.locator('#reader-header').hover({ force: true })
     await delay(200)
     await page.locator('ion-button[aria-label="Reader menu"]').click()
     await delay(500)
-    await page
-      .locator('ion-item[role="listitem"]', { hasText: 'Go to Page' })
-      .click()
-    await page
-      .locator('ion-modal input[placeholder="page number"]')
-      .fill(`${pageNumber}`)
+
+    const goToPageItem = page.locator('ion-item[role="listitem"]', {
+      hasText: 'Go to Page'
+    })
+    let target = `${pageNumber}`
+
+    if (!(await goToPageItem.isVisible())) {
+      locationOnlyMode = true
+      target = `${getLocationForPage(pageNumber)}`
+      await page
+        .locator('ion-item[role="listitem"]', { hasText: 'Go to Location' })
+        .click()
+    } else {
+      await goToPageItem.click()
+    }
+
+    await page.locator('ion-modal input').first().fill(target)
     // await page.locator('ion-modal button', { hasText: 'Go' }).click()
     await page
       .locator('ion-modal ion-button[item-i-d="go-to-modal-go-button"]')
@@ -387,7 +412,39 @@ async function main() {
       .locator('ion-footer ion-title')
       .first()
       .textContent()
-    return parsePageNav(footerText)
+    const pageNav = parsePageNav(footerText)
+
+    if (
+      locationOnlyMode &&
+      pageNav?.page === undefined &&
+      pageNav?.location !== undefined &&
+      /location/i.test(footerText ?? '')
+    ) {
+      pageNav.page = getPageForLocation(pageNav.location)
+    }
+
+    return pageNav
+  }
+
+  /** Kindle locations are 1-based indices into `locationMap.locations`. */
+  function getPageForLocation(location: number): number {
+    const position = result.locationMap?.locations[location - 1]
+    return position === undefined ? -1 : getPageForPosition(position)
+  }
+
+  function getLocationForPage(pageNumber: number): number {
+    const locationMap = result.locationMap
+    assert(locationMap, 'expected book location map to be initialized')
+
+    const navUnit = locationMap.navigationUnit.find(
+      (unit) => unit.page === pageNumber
+    )
+    assert(navUnit, `no location map entry for page ${pageNumber}`)
+
+    const index = locationMap.locations.findIndex(
+      (position) => position >= navUnit.startPosition
+    )
+    return index === -1 ? locationMap.locations.length : index + 1
   }
 
   async function ensureFixedHeaderUI() {
@@ -474,6 +531,8 @@ async function main() {
 
   await autoDismissAlerts()
   await dismissPossibleAlert()
+  // The reader UI can take a while to appear, especially right after signin.
+  await page.locator('.top-chrome').waitFor({ timeout: 90_000 })
   await ensureFixedHeaderUI()
   await updateSettings()
 
@@ -696,10 +755,17 @@ async function main() {
   console.log()
   console.log(metadataPath)
 
-  if (initialPageNav?.page !== undefined) {
-    console.warn(`resetting back to initial page ${initialPageNav.page}...`)
+  // The initial nav may only have a location if the reader is location-only.
+  const initialPage =
+    initialPageNav?.page ??
+    (locationOnlyMode && initialPageNav?.location !== undefined
+      ? getPageForLocation(initialPageNav.location)
+      : undefined)
+
+  if (initialPage !== undefined && initialPage > 0) {
+    console.warn(`resetting back to initial page ${initialPage}...`)
     // Reset back to the initial page
-    await goToPage(initialPageNav.page)
+    await goToPage(initialPage)
   }
 
   await context.close()

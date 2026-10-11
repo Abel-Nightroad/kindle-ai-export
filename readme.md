@@ -1,6 +1,6 @@
 # Kindle AI Export <!-- omit from toc -->
 
-> Export any Kindle book you own as text, PDF, EPUB, or as a custom, AI-narrated audiobook. 🔥
+> Export any Kindle book you own as text, PDF, EPUB, or Markdown, optionally translated into another language. 🔥
 
 <p>
   <a href="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml/badge.svg" /></a>
@@ -10,16 +10,15 @@
 
 - [Intro](#intro)
   - [How does it work?](#how-does-it-work)
-  - [Audiobook Examples 🔥](#audiobook-examples-)
   - [Why is this necessary?](#why-is-this-necessary)
 - [Usage](#usage)
   - [Setup Env Vars](#setup-env-vars)
   - [Extract Kindle Book](#extract-kindle-book)
   - [Transcribe Book Content](#transcribe-book-content)
+  - [(Optional) Translate Book Content](#optional-translate-book-content)
   - [(Optional) Export Book as PDF](#optional-export-book-as-pdf)
   - [(Optional) Export Book as EPUB](#optional-export-book-as-epub)
   - [(Optional) Export Book as Markdown](#optional-export-book-as-markdown)
-  - [(Optional) Export Book as AI-Narrated Audiobook 🔥](#optional-export-book-as-ai-narrated-audiobook-)
 - [Disclaimer](#disclaimer)
 - [Author's Notes](#authors-notes)
   - [Alternative Approaches](#alternative-approaches)
@@ -28,13 +27,13 @@
 
 ## Intro
 
-This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or as a custom, AI-narrated audiobook. It only requires a valid Amazon Kindle account and an OpenAI API key.
+This project makes it easy to export the contents of any ebook in your Kindle library as text, PDF, EPUB, or Markdown. It only requires a valid Amazon Kindle account and a Claude subscription (it runs through [Claude Code](https://claude.com/claude-code), so no API credits are needed).
 
 _You must own the ebook on Kindle for this project to work._
 
 ### How does it work?
 
-It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using a vLLM (defaulting to `gpt-4.1-mini`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
+It works by logging into your [Kindle web reader](https://read.amazon.com) account using [Playwright](https://playwright.dev), exporting each page of a book as a PNG image, and then using Claude Code (defaulting to `claude-haiku-5-5`) to transcribe the text from each page to text. Once we have the raw book contents and metadata, then it's easy to convert it to PDF, EPUB, etc. 🔥
 
 This [example](./examples/B0819W19WD) uses the first page of the scifi book [Revelation Space](https://www.amazon.com/gp/product/B0819W19WD?ref_=dbs_m_mng_rwt_calw_tkin_0&storeType=ebooks) by [Alastair Reynolds](https://www.goodreads.com/author/show/51204.Alastair_Reynolds):
 
@@ -66,7 +65,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
     </tr>
     <tr>
       <td>
-        We then convert each page's screenshot into text using one of OpenAI's vLLMs (<strong>gpt-4.1-mini</strong>.
+        We then convert each page's screenshot into text using Claude (<strong>claude-haiku-5-5</strong> by default, via Claude Code).
       </td>
       <td>
         <p>Mantell Sector, North Nekhebet, Resurgam, Delta Pavonis system, 2551</p>
@@ -91,45 +90,7 @@ This [example](./examples/B0819W19WD) uses the first page of the scifi book [Rev
           <li>
             <a href="./examples/B0819W19WD/book-preview.md">Markdown output preview</a>
           </li>
-          <li>
-            <a href="#audiobook-examples-">Audiobook examples</a>
-          </li>
         </ul>
-      </td>
-    </tr>
-  </tbody>
-</table>
-
-### Audiobook Examples 🔥
-
-We can even use TTS to generate custom audiobooks.
-
-Here are some auto-generated examples using a few different TTS providers & voices, containing only the first page of this book as a preview:
-
-<table>
-  <tbody>
-    <tr>
-      <td align="center">
-        OpenAI tts-1-hd "alloy" voice <br />(female; solid quality but more expensive)
-      </td>
-      <td>
-        <video src="https://github.com/user-attachments/assets/f634f2cc-cc65-4381-ba04-5fc59df69668"></video>
-      </td>
-    </tr>
-    <tr>
-      <td align="center">
-        OpenAI tts-1-hd "onyx" voice <br />(male; solid quality but more expensive)
-      </td>
-      <td>
-        <video src="https://github.com/user-attachments/assets/5cc86ae3-9f82-414c-a69f-a2ab40db4ce1"></video>
-      </td>
-    </tr>
-    <tr>
-      <td align="center">
-        Unreal Speech "Scarlett" voice <br />(female; medium quality but cheaper)
-      </td>
-      <td>
-        <video src="https://github.com/user-attachments/assets/232e5258-9f89-4493-a06b-5523ddf93226"></video>
       </td>
     </tr>
   </tbody>
@@ -147,17 +108,17 @@ I also created an [OSS TypeScript client for the unofficial Kindle API](https://
 
 ## Usage
 
-Make sure you have `node >= 18` and [pnpm](https://pnpm.io) installed.
+Make sure you have `node >= 20`, [pnpm](https://pnpm.io), Google Chrome and [Claude Code](https://claude.com/claude-code) installed, and that you're signed in to Claude Code with your Claude subscription. For EPUB export you also need [Pandoc](https://pandoc.org).
 
 1. Clone this repo
 2. Run `pnpm install`
 3. Set up environment variables ([details](#setup-env-vars))
 4. Run `src/extract-kindle-book.ts` ([details](#extract-kindle-book))
 5. Run `src/transcribe-book-content.ts` ([details](#transcribe-book-content))
-6. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
-7. (Optional) Export book as EPUB ([details](#optional-export-book-as-epub))
-8. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
-9. (Optional) Run `src/export-book-audio.ts` ([details](#optional-export-book-as-ai-narrated-audiobook-))
+6. (Optional) Run `src/translate-book-content.ts` ([details](#optional-translate-book-content))
+7. (Optional) Run `src/export-book-pdf.ts` ([details](#optional-export-book-as-pdf))
+8. (Optional) Run `src/export-book-epub.ts` ([details](#optional-export-book-as-epub))
+9. (Optional) Run `src/export-book-markdown.ts` ([details](#optional-export-book-as-markdown))
 
 ### Setup Env Vars
 
@@ -168,10 +129,19 @@ AMAZON_EMAIL=
 AMAZON_PASSWORD=
 ASIN=
 
-OPENAI_API_KEY=
+# Kindle Cloud Reader for your Amazon store (default read.amazon.com).
+# E.g. lesen.amazon.de for amazon.de accounts.
+KINDLE_READER_HOST=
+
+# Optional: Claude models (default claude-haiku-5-5)
+CLAUDE_OCR_MODEL=
+CLAUDE_TRANSLATE_MODEL=
+
+# Optional: export a translation, e.g. fi (see "Translate Book Content")
+BOOK_LANGUAGE=
 ```
 
-You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Identification_Number) (Amazon ID) by visiting [read.amazon.com](https://read.amazon.com) and clicking on the book you want to export. The resulting URL will look like `https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_2`, with `B0819W19WD` being the ASIN in this case.
+You can find your book's [ASIN](https://en.wikipedia.org/wiki/Amazon_Standard_Identification_Number) (Amazon ID) by visiting [read.amazon.com](https://read.amazon.com) and clicking on the book you want to export (use your store's reader, e.g. [lesen.amazon.de](https://lesen.amazon.de) for amazon.de). The resulting URL will look like `https://read.amazon.com/?asin=B0819W19WD&ref_=kwl_kr_iv_rec_2`, with `B0819W19WD` being the ASIN in this case.
 
 ### Extract Kindle Book
 
@@ -202,10 +172,24 @@ npx tsx src/transcribe-book-content.ts
 ```
 
 - _(This takes a few minutes to run)_
-- This takes each of the page screenshots and runs them through a vLLM (defaulting to `gpt-4.1-mini`) to extract the raw text content from each page of the book.
+- This takes each of the page screenshots and has Claude Code (`claude -p`) read the raw text from each page, so it uses your Claude subscription instead of API credits.
+- Set `CLAUDE_OCR_MODEL` to pick the model (default `claude-haiku-5-5`) and `CLAUDE_OCR_CONCURRENCY` for parallel requests (default 4).
+- Progress is saved after every page. If you hit your subscription's usage limit, the script stops; run it again after the limit resets and it continues where it left off.
+- Claude may decline to transcribe some pages of copyrighted books. Those pages are skipped (never saved as text), and the script tells you how many are missing; re-running retries them.
 - It then stitches these text chunks together, taking into account chapter boundaries.
 - The result is stored as JSON to `out/${asin}/content.json`.
 - Example: [examples/B0819W19WD/content.json](./examples/B0819W19WD/content.json)
+
+### (Optional) Translate Book Content
+
+```sh
+npx tsx src/translate-book-content.ts
+```
+
+- Translates `content.json` into another language with Claude Code, defaulting to Finnish. Set `BOOK_LANGUAGE` (e.g. `de`) and `BOOK_LANGUAGE_NAME` (e.g. `German`) for another language, and `CLAUDE_TRANSLATE_MODEL` for the model (default `claude-haiku-5-5`).
+- Sentences cut off at the end of a page are moved to the next chunk first, so no sentence is translated in two halves. Chapter titles are translated too.
+- Like transcription, it saves progress, resumes after usage limits, and skips passages Claude declines (re-run to retry them).
+- The result is stored to `out/${asin}/content.${lang}.json`. To export the translation, set `BOOK_LANGUAGE=${lang}` when running the export scripts below; they write `book.${lang}.pdf`, `book.${lang}.md` and `book.${lang}.epub`, using the original text for any untranslated chunk.
 
 ### (Optional) Export Book as PDF
 
@@ -221,14 +205,14 @@ npx tsx src/export-book-pdf.ts
 
 ### (Optional) Export Book as EPUB
 
-If you want, you can use [Calibre](https://calibre-ebook.com) to convert your book's PDF to the EPUB ebook format. On a Mac, you can install `calibre` using Homebrew (`brew install --cask calibre`).
-
 ```sh
-# replace B0819W19WD with your book's ASIN
-ebook-convert out/B0819W19WD/book.pdf out/B0819W19WD/book.epub --enable-heuristics
+npx tsx src/export-book-markdown.ts
+npx tsx src/export-book-epub.ts
 ```
 
-_([ebook-convert docs](https://manual.calibre-ebook.com/generated/en/ebook-convert.html))_
+- Builds `out/${asin}/book.epub` from the Markdown export with [Pandoc](https://pandoc.org), with a proper chapter list and reflowable text, so export Markdown first.
+- Set `PANDOC_PATH` if `pandoc` isn't on your `PATH`.
+- To read it on a Kindle, upload the EPUB with [Send to Kindle](https://www.amazon.com/sendtokindle) (use your own store, e.g. amazon.de/sendtokindle).
 
 ### (Optional) Export Book as Markdown
 
@@ -239,30 +223,6 @@ npx tsx src/export-book-markdown.ts
 - _(This should run instantly)_
 - The result is stored to `out/${asin}/book.md`.
 - Example: [examples/B0819W19WD/book-preview.md](./examples/B0819W19WD/book-preview.md)
-
-### (Optional) Export Book as AI-Narrated Audiobook 🔥
-
-```sh
-npx tsx src/export-book-audio.ts
-```
-
-- _This takes a few minutes to run._
-- We support two TTS engines: [OpenAI TTS](https://platform.openai.com/docs/models/tts) and [Unreal Speech TTS](https://unrealspeech.com).
-  - To use OpenAI, set `TTS_ENGINE=openai` (the default)
-  - To use Unreal Speech, set `TTS_ENGINE=unrealspeech` and `UNREAL_SPEECH_API_KEY=(your-api-key)`
-  - OpenAI is higher quality but more expensive; Unreal Speech is medium quality and cheaper
-  - To set the OpenAI voice, use `OPENAI_TTS_VOICE=onyx` (defaults to `alloy`)
-  - To set the Unreal Speech voice, use `UNREAL_SPEECH_VOICE='Scarlett'` (defaults to `Scarlett`)
-  - OpenAI TTS for a full novel (~1M tokens) is approximately **$30** (1.5GB MP3 ~21 hours long)
-  - Unreal Speech TTS for a full novel (~1M tokens) is approximately **$2** (1.7GB MP3 ~23 hours long)
-  - It should be pretty easy to support other TTS providers in the future.
-- The TTS will be broken up into reasonly sized chunks and stored in `mp3` files under `out/${asin}/audio/<tts-engine-hash>/`.
-  - The `<tts-engine-hash>` directory is based on the TTS engine settings and book contents
-- After generating audio for each chunk, we use `ffmpeg` to concat them together.
-  - You need to have `ffmpeg` installed locally for this to work
-  - On Mac, `brew install ffmpeg` ([or install with more options](https://stackoverflow.com/a/55108365/2353599))
-- The resulting audiobook is stored to `out/${asin}/audio/<tts-engine-hash>/audiobook.mp3`.
-- Examples: [examples/B0819W19WD/audio-previews](./examples/B0819W19WD/audio-previews)
 
 ## Disclaimer
 
@@ -284,7 +244,7 @@ Compared with these approaches, the approach used by this project is much easier
 
 The main downside is that it's possible for some transcription errors to occur during the `image ⇒ text` step - which uses a multimodal LLM and is not 100% deterministic. In my testing, I've been remarkably surprised with how accurate the results are, but there are occasional issues mostly with differentiating whitespace between paragraphs versus soft section breaks. Note that both Calibre and Epubor also use heuristics to deal with things like spacing and dashes used by wordwrap, so the fidelity of the conversions will not be 100% one-to-one with the original Kindle version in any case.
 
-The other downside is that the **LLM costs add up to a dollars per book using `gpt-4.1-mini`**. With LLM costs constantly decreasing and local vLLMs, this cost per book should be free or almost free soon. The screenshots are also really good quality with no extra content, so you could swap any other OCR solution for the vLLM-based `image ⇒ text` quite easily.
+The other downside is that the **usage adds up per book** (against your Claude subscription's limits), depending on the Claude model you pick. With LLM costs constantly decreasing and local vLLMs, this cost per book should be free or almost free soon. The screenshots are also really good quality with no extra content, so you could swap any other OCR solution for the vLLM-based `image ⇒ text` quite easily.
 
 ### How is the accuracy?
 
