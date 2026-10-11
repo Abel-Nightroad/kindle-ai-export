@@ -2,6 +2,9 @@
 
 > Export any Kindle book you own as text, PDF, EPUB, or Markdown, optionally translated into another language. 🔥
 
+> [!NOTE]
+> This is a fork of [transitive-bullshit/kindle-ai-export](https://github.com/transitive-bullshit/kindle-ai-export) by [Travis Fischer](https://github.com/transitive-bullshit), who wrote the original project. This fork runs transcription through Claude Code (using a Claude subscription instead of API credits), adds translation and EPUB export, and supports non-US Kindle stores such as amazon.de.
+
 <p>
   <a href="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml"><img alt="Build Status" src="https://github.com/transitive-bullshit/kindle-ai-export/actions/workflows/main.yml/badge.svg" /></a>
   <a href="https://github.com/transitive-bullshit/kindle-ai-export/blob/main/license"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-blue" /></a>
